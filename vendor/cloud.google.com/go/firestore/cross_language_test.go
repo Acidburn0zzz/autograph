@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path"
 	"path/filepath"
 	"strings"
@@ -43,7 +42,6 @@ func TestCrossLanguageTests(t *testing.T) {
 	n := 0
 	for _, fi := range fis {
 		if strings.HasSuffix(fi.Name(), ".textproto") {
-			// TODO(jba): use  sub-tests.
 			runTestFromFile(t, filepath.Join(dir, fi.Name()))
 			n++
 		}
@@ -54,7 +52,7 @@ func TestCrossLanguageTests(t *testing.T) {
 func runTestFromFile(t *testing.T, filename string) {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: %v", filename, err)
 	}
 	var test pb.Test
 	if err := proto.UnmarshalText(string(bytes), &test); err != nil {
@@ -94,51 +92,51 @@ func runTest(t *testing.T, msg string, test *pb.Test) {
 	case *pb.Test_Create:
 		srv.addRPC(tt.Create.Request, commitResponseForSet)
 		ref := docRefFromPath(tt.Create.DocRefPath, c)
-		data := convertData(tt.Create.JsonData)
-		_, err := ref.Create(ctx, data)
+		data, err := convertData(tt.Create.JsonData)
+		if err != nil {
+			t.Errorf("%s: %v", msg, err)
+			return
+		}
+		_, err = ref.Create(ctx, data)
 		check(err, tt.Create.IsError)
 
 	case *pb.Test_Set:
 		srv.addRPC(tt.Set.Request, commitResponseForSet)
 		ref := docRefFromPath(tt.Set.DocRefPath, c)
-		data := convertData(tt.Set.JsonData)
+		data, err := convertData(tt.Set.JsonData)
+		if err != nil {
+			t.Errorf("%s: %v", msg, err)
+			return
+		}
 		var opts []SetOption
 		if tt.Set.Option != nil {
 			opts = []SetOption{convertSetOption(tt.Set.Option)}
 		}
-		_, err := ref.Set(ctx, data, opts...)
+		_, err = ref.Set(ctx, data, opts...)
 		check(err, tt.Set.IsError)
 
 	case *pb.Test_Update:
-		srv.addRPC(tt.Update.Request, commitResponseForSet)
-		ref := docRefFromPath(tt.Update.DocRefPath, c)
-		data := convertData(tt.Update.JsonData)
-		preconds := convertPrecondition(t, tt.Update.Precondition)
-		_, err := ref.UpdateMap(ctx, data, preconds...)
-		if tt.Update.IsError && err == nil {
-			t.Errorf("%s: got nil, want error", msg)
-		} else if !tt.Update.IsError && err != nil {
-			t.Errorf("%s: %v", msg, err)
-		}
+		// Ignore Update test because we only support UpdatePaths.
+		// Not to worry, every Update test has a corresponding UpdatePaths test.
 
 	case *pb.Test_UpdatePaths:
 		srv.addRPC(tt.UpdatePaths.Request, commitResponseForSet)
 		ref := docRefFromPath(tt.UpdatePaths.DocRefPath, c)
 		preconds := convertPrecondition(t, tt.UpdatePaths.Precondition)
 		paths := convertFieldPaths(tt.UpdatePaths.FieldPaths)
-		var fpus []FieldPathUpdate
+		var ups []Update
 		for i, path := range paths {
 			jsonValue := tt.UpdatePaths.JsonValues[i]
 			var val interface{}
 			if err := json.Unmarshal([]byte(jsonValue), &val); err != nil {
 				t.Fatalf("%s: %q: %v", msg, jsonValue, err)
 			}
-			fpus = append(fpus, FieldPathUpdate{
-				Path:  path,
-				Value: convertTestValue(val),
+			ups = append(ups, Update{
+				FieldPath: path,
+				Value:     convertTestValue(val),
 			})
 		}
-		_, err := ref.UpdatePaths(ctx, fpus, preconds...)
+		_, err := ref.Update(ctx, ups, preconds...)
 		check(err, tt.UpdatePaths.IsError)
 
 	case *pb.Test_Delete:
@@ -161,12 +159,12 @@ func docRefFromPath(p string, c *Client) *DocumentRef {
 	}
 }
 
-func convertData(jsonData string) map[string]interface{} {
+func convertData(jsonData string) (map[string]interface{}, error) {
 	var m map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonData), &m); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return convertTestMap(m)
+	return convertTestMap(m), nil
 }
 
 func convertTestMap(m map[string]interface{}) map[string]interface{} {
@@ -226,7 +224,7 @@ func convertPrecondition(t *testing.T, fp *fspb.Precondition) []Precondition {
 	var pc Precondition
 	switch fp := fp.ConditionType.(type) {
 	case *fspb.Precondition_Exists:
-		pc = Exists(fp.Exists)
+		pc = exists(fp.Exists)
 	case *fspb.Precondition_UpdateTime:
 		tm, err := ptypes.Timestamp(fp.UpdateTime)
 		if err != nil {

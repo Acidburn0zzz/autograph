@@ -1,10 +1,10 @@
-// Copyright 2017, Google LLC All rights reserved.
+// Copyright 2018 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -217,8 +217,7 @@ func (c *ConfigClient) GetSink(ctx context.Context, req *loggingpb.GetSinkReques
 }
 
 // CreateSink creates a sink that exports specified log entries to a destination.  The
-// export of newly-ingested log entries begins immediately, unless the current
-// time is outside the sink's start and end times or the sink's
+// export of newly-ingested log entries begins immediately, unless the sink's
 // writer_identity is not permitted to write to the destination.  A sink can
 // export log entries only from the resource owning the sink.
 func (c *ConfigClient) CreateSink(ctx context.Context, req *loggingpb.CreateSinkRequest, opts ...gax.CallOption) (*loggingpb.LogSink, error) {
@@ -237,8 +236,7 @@ func (c *ConfigClient) CreateSink(ctx context.Context, req *loggingpb.CreateSink
 }
 
 // UpdateSink updates a sink.  This method replaces the following fields in the existing
-// sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time.
+// sink with values from the new sink: destination, and filter.
 // The updated sink might also have a new writer_identity; see the
 // unique_writer_identity field.
 func (c *ConfigClient) UpdateSink(ctx context.Context, req *loggingpb.UpdateSinkRequest, opts ...gax.CallOption) (*loggingpb.LogSink, error) {
